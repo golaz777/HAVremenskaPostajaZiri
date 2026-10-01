@@ -25,8 +25,9 @@ Slovenia ([vreme-ziri.si](https://www.vreme-ziri.si/)).
   (this happens around the start of each month), temperature, humidity, wind
   speed and rainfall are taken from the "Trenutno na meteorološki postaji ŽIRI"
   line in the page header instead of failing with
-  *"No data rows found in table"*. Sensors the header does not cover show
-  *unknown* until the table is back.
+  *"No data rows found in table"*. **Datum** and **Čas meritve** then show
+  when the page was fetched, since the header has no timestamp of its own.
+  Sensors the header does not cover show *unknown* until the table is back.
   The diagnostic sensor **Vir podatkov** shows which source is in use, so
   you can see it on a dashboard or use it in automations.
 - Single device with all sensors, set up from the UI
@@ -76,7 +77,7 @@ To check right away: **HACS → ⋮ on the integration → Update information**.
 | ET izhlapevanje | mm | |
 | Trajanje sončnega obsevanja | h | |
 | Smer vetra | S, SSV, SV, … | |
-| Datum, Čas meritve | text | |
+| Datum, Čas meritve | text | ✅ time of fetch |
 | PM1, PM2.5, PM10 | µg/m³ | n/a (separate source) |
 | AIQ-trenutni, AQI-v zadnji uri | | n/a (separate source) |
 | Vir podatkov (diagnostic) | Tabela / Glava strani | shows which source is in use |

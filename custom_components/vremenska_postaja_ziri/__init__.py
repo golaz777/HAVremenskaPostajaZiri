@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 from datetime import datetime
+from functools import partial
 import logging
 from urllib.parse import quote
 
@@ -150,7 +151,9 @@ class VremenskaPostajaZiriCoordinator(DataUpdateCoordinator):
 
     async def _fetch_weather(self, session: aiohttp.ClientSession) -> dict:
         """Fetch the 5-minute table, falling back to the page header."""
-        data = await self._fetch_page(session, URL, parse_weather_html)
+        data = await self._fetch_page(
+            session, URL, partial(parse_weather_html, now=dt_util.now())
+        )
 
         if data["source"] != self._source:
             if data["source"] == "header":

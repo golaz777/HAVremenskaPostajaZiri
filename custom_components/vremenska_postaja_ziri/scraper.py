@@ -55,10 +55,14 @@ def safe_float(val):
         return None
 
 
-def parse_weather_html(html: str) -> dict:
+def parse_weather_html(html: str, now: datetime | None = None) -> dict:
     """Parse the latest measurements, falling back to the header values.
 
     The result carries a ``source`` key: ``"table"`` or ``"header"``.
+
+    The header has no timestamp, so on fallback ``date`` and ``time`` are set
+    from ``now`` (the fetch time) in station time. ``measured_at`` is left
+    out: it is not a real measurement time, and the stale check relies on it.
     """
     soup = BeautifulSoup(html, "html.parser")
     try:
@@ -72,6 +76,10 @@ def parse_weather_html(html: str) -> dict:
             raise ParseError(f"{table_err}; {header_err}") from header_err
         data["source"] = "header"
         data["table_error"] = str(table_err)
+        if now is not None:
+            local = now.astimezone(LJUBLJANA)
+            data["date"] = local.strftime("%d.%m.%Y")
+            data["time"] = local.strftime("%H:%M")
         return data
 
 

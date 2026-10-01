@@ -104,9 +104,13 @@ async def test_recent_snow_measurement_is_reported(hass: HomeAssistant, aioclien
     assert _state(hass, "sensor", "snow_depth").state == "0.0"
 
 
+@pytest.mark.freeze_time("2026-10-01 13:47:00+02:00")
 async def test_header_fallback(hass: HomeAssistant, aioclient_mock: AiohttpClientMocker) -> None:
     _mock_pages(aioclient_mock, weather_page="tabelaricni_dan_no_rows.html")
     await _setup(hass)
+
+    assert _state(hass, "sensor", "date").state == "01.10.2026"
+    assert _state(hass, "sensor", "time").state == "13:47"
 
     assert _state(hass, "sensor", "source").state == "header"
     assert _state(hass, "sensor", "temperature").state == "20.9"

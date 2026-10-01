@@ -1,5 +1,5 @@
 """Tests for the HTML scraper (no Home Assistant required)."""
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -51,6 +51,33 @@ def test_no_data_rows_falls_back_to_header():
     # Values the header does not carry are absent, not guessed.
     assert "pressure" not in data
     assert "wind_gust" not in data
+
+
+def test_header_fallback_uses_fetch_time_for_date_and_time():
+    # 11:47 UTC is 13:47 in Ljubljana (CEST).
+    now = datetime(2026, 10, 1, 11, 47, 30, tzinfo=timezone.utc)
+
+    data = parse_weather_html(_load("tabelaricni_dan_no_rows.html"), now=now)
+
+    assert data["date"] == "01.10.2026"
+    assert data["time"] == "13:47"
+    # Not a real measurement time, so the stale check stays unknown.
+    assert "measured_at" not in data
+
+
+def test_header_fallback_without_now_has_no_date_and_time():
+    data = parse_weather_html(_load("tabelaricni_dan_no_rows.html"))
+
+    assert "date" not in data
+    assert "time" not in data
+
+
+def test_table_ignores_fetch_time():
+    now = datetime(2026, 10, 1, 11, 47, tzinfo=timezone.utc)
+
+    data = parse_weather_html(_load("tabelaricni_dan_with_rows.html"), now=now)
+
+    assert data["time"] == "00:05"
 
 
 def test_missing_table_falls_back_to_header():

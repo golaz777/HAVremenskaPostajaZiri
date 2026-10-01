@@ -40,7 +40,10 @@ HACS requires this layout.
 table. If the table is missing, has no rows, or has fewer than 15 columns, it
 falls back to the header line in `<div id="ident">`
 (`20,9 °C | 50 % | 12,9 km/h | 0,0 mm`), which yields only `temperature`,
-`humidity`, `wind_speed` and `rain_total`. Keys the header lacks are **absent**,
+`humidity`, `wind_speed` and `rain_total`. `date`/`time` are filled from the fetch time (`now=`, passed by the
+coordinator) so those sensors keep a value, but `measured_at` is **never** set
+from it — the stale sensor must not treat fetch time as a measurement.
+Other keys the header lacks are **absent**,
 not `None`-guessed; sensors show unknown. The result carries `source`
 (`"table"`/`"header"`), exposed by the diagnostic
 enum sensor `source` ("Vir podatkov"); its state labels live in `strings.json`

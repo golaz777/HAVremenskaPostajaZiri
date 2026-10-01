@@ -2,6 +2,13 @@
 
 All notable changes to Vremenska postaja Žiri are documented here.
 
+## [Unreleased]
+
+### Changed
+- On header fallback, **Datum** and **Čas meritve** show when the page was
+  fetched (station time) instead of *unknown*. **Zastareli podatki** stays
+  *unknown* in this mode, because the fetch time is not a measurement time.
+
 ## [1.2.1] - 2026-10-01
 
 ### Added
