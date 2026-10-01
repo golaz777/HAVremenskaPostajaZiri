@@ -1,0 +1,13 @@
+{
+  "domain": "vremenska_postaja_ziri",
+  "name": "Vremenska postaja Žiri",
+  "codeowners": ["@golaz777"],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/golaz777/HAVremenskaPostajaZiri",
+  "integration_type": "service",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/golaz777/HAVremenskaPostajaZiri/issues",
+  "requirements": ["beautifulsoup4>=4.12"],
+  "version": "1.1.0"
+}

@@ -1,0 +1,13 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Vremenska postaja Žiri",
+        "description": "Želite dodati Vremensko postajo Žiri?"
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Vremenska postaja Žiri je že nastavljena."
+    }
+  }
+}

@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Virtual envs
+venv/
+.venv/
+
+# Testing
+.pytest_cache/
+.coverage
+
+# AI / Dev tooling
+.claude/
+docs/superpowers/
+
+# Secrets
+.env
+secrets.yaml
+TODO.md
