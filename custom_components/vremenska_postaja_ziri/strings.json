@@ -9,5 +9,15 @@
     "abort": {
       "single_instance_allowed": "Vremenska postaja Žiri is already configured."
     }
+  },
+  "entity": {
+    "sensor": {
+      "source": {
+        "state": {
+          "table": "Table",
+          "header": "Page header"
+        }
+      }
+    }
   }
 }

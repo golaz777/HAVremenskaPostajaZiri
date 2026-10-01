@@ -13,6 +13,8 @@ from homeassistant.components.sensor import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     DEGREE,
+    UnitOfIrradiance,
+    EntityCategory,
     PERCENTAGE,
     CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
     UnitOfLength,
@@ -22,17 +24,52 @@ from homeassistant.const import (
     UnitOfTime,
 )
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.util import dt as dt_util
 
-from . import VremenskaPostajaZiriCoordinator
-from .const import DOMAIN
+from .const import DOMAIN, SNOW_MAX_AGE
+from .entity import VremenskaPostajaZiriEntity
+from .scraper import COMPASS_POINTS
 
-@dataclass
+@dataclass(frozen=True, kw_only=True)
 class VremenskaPostajaZiriSensorEntityDescription(SensorEntityDescription):
     """Class describing Vremenska postaja Žiri sensor entities."""
-    value_fn: Callable[[dict], str | float | None] = None
+    value_fn: Callable[[dict], str | float | None]
+    attrs_fn: Callable[[dict], dict] | None = None
+
+
+def _today_extreme(
+    key: str, name: str, **kwargs
+) -> VremenskaPostajaZiriSensorEntityDescription:
+    """Today's extreme from today.php, with the time it occurred as an attribute."""
+    return VremenskaPostajaZiriSensorEntityDescription(
+        key=key,
+        name=name,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda data: data.get(key),
+        attrs_fn=lambda data: {"time": data.get(f"{key}_time")},
+        **kwargs,
+    )
+
+
+def _river_attrs(data: dict) -> dict:
+    return {"measured_at": data.get("river_measured_at")}
+
+
+def _snow_value(key: str) -> Callable[[dict], float | None]:
+    """Snow value, or None if the latest measurement is too old to be current."""
+
+    def value(data: dict) -> float | None:
+        measured = data.get("snow_measured")
+        if measured is None or dt_util.now().date() - measured > SNOW_MAX_AGE:
+            return None
+        return data.get(key)
+
+    return value
+
+
+def _snow_attrs(data: dict) -> dict:
+    return {"measured": data.get("snow_measured"), "notes": data.get("snow_notes")}
 
 SENSOR_TYPES: list[VremenskaPostajaZiriSensorEntityDescription] = [
     VremenskaPostajaZiriSensorEntityDescription(
@@ -88,6 +125,14 @@ SENSOR_TYPES: list[VremenskaPostajaZiriSensorEntityDescription] = [
         value_fn=lambda data: data.get("wind_direction_deg"),
     ),
     VremenskaPostajaZiriSensorEntityDescription(
+        key="wind_direction",
+        name="Smer vetra",
+        icon="mdi:compass-rose",
+        device_class=SensorDeviceClass.ENUM,
+        options=COMPASS_POINTS,
+        value_fn=lambda data: data.get("wind_direction"),
+    ),
+    VremenskaPostajaZiriSensorEntityDescription(
         key="rain_rate",
         name="Jakost padavin",
         native_unit_of_measurement="mm/h",
@@ -121,7 +166,7 @@ SENSOR_TYPES: list[VremenskaPostajaZiriSensorEntityDescription] = [
     VremenskaPostajaZiriSensorEntityDescription(
         key="solar_radiation",
         name="Sončno obsevanje",
-        native_unit_of_measurement="W/m2",
+        native_unit_of_measurement=UnitOfIrradiance.WATTS_PER_SQUARE_METER,
         device_class=SensorDeviceClass.IRRADIANCE,
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda data: data.get("solar_radiation"),
@@ -147,6 +192,140 @@ SENSOR_TYPES: list[VremenskaPostajaZiriSensorEntityDescription] = [
         device_class=SensorDeviceClass.DURATION,
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda data: data.get("sunshine_duration"),
+    ),
+    # Today's extremes (today.php)
+    _today_extreme(
+        "today_temp_max", "Najvišja temperatura danes",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+    ),
+    _today_extreme(
+        "today_temp_min", "Najnižja temperatura danes",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+    ),
+    _today_extreme(
+        "today_humidity_max", "Najvišja vlažnost danes",
+        native_unit_of_measurement=PERCENTAGE,
+        device_class=SensorDeviceClass.HUMIDITY,
+    ),
+    _today_extreme(
+        "today_humidity_min", "Najnižja vlažnost danes",
+        native_unit_of_measurement=PERCENTAGE,
+        device_class=SensorDeviceClass.HUMIDITY,
+    ),
+    _today_extreme(
+        "today_gust_max", "Najmočnejši sunek danes",
+        native_unit_of_measurement=UnitOfSpeed.KILOMETERS_PER_HOUR,
+        device_class=SensorDeviceClass.WIND_SPEED,
+    ),
+    _today_extreme(
+        "today_wind_max", "Najvišja hitrost vetra danes",
+        native_unit_of_measurement=UnitOfSpeed.KILOMETERS_PER_HOUR,
+        device_class=SensorDeviceClass.WIND_SPEED,
+    ),
+    _today_extreme(
+        "today_rain_rate_max", "Največja jakost padavin danes",
+        native_unit_of_measurement="mm/h",
+        device_class=SensorDeviceClass.PRECIPITATION_INTENSITY,
+    ),
+    _today_extreme(
+        "today_rain_hour_max", "Največ padavin v eni uri danes",
+        native_unit_of_measurement=UnitOfLength.MILLIMETERS,
+        device_class=SensorDeviceClass.PRECIPITATION,
+    ),
+    _today_extreme(
+        "today_pressure_max", "Najvišji zračni tlak danes",
+        native_unit_of_measurement=UnitOfPressure.MBAR,
+        device_class=SensorDeviceClass.PRESSURE,
+    ),
+    _today_extreme(
+        "today_pressure_min", "Najnižji zračni tlak danes",
+        native_unit_of_measurement=UnitOfPressure.MBAR,
+        device_class=SensorDeviceClass.PRESSURE,
+    ),
+    _today_extreme(
+        "today_uv_max", "Najvišji UV indeks danes",
+        icon="mdi:weather-sunny-alert",
+    ),
+    VremenskaPostajaZiriSensorEntityDescription(
+        key="dry_spell_days",
+        name="Trenutno sušno obdobje",
+        native_unit_of_measurement=UnitOfTime.DAYS,
+        device_class=SensorDeviceClass.DURATION,
+        icon="mdi:weather-sunny",
+        value_fn=lambda data: data.get("dry_spell_days"),
+    ),
+    VremenskaPostajaZiriSensorEntityDescription(
+        key="rain_spell_days",
+        name="Trenutno deževno obdobje",
+        native_unit_of_measurement=UnitOfTime.DAYS,
+        device_class=SensorDeviceClass.DURATION,
+        icon="mdi:weather-rainy",
+        value_fn=lambda data: data.get("rain_spell_days"),
+    ),
+    # River Sora (vodostaj.php)
+    VremenskaPostajaZiriSensorEntityDescription(
+        key="river_level",
+        name="Vodostaj Sore",
+        native_unit_of_measurement=UnitOfLength.CENTIMETERS,
+        device_class=SensorDeviceClass.DISTANCE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:waves",
+        value_fn=lambda data: data.get("river_level"),
+        attrs_fn=_river_attrs,
+    ),
+    VremenskaPostajaZiriSensorEntityDescription(
+        key="river_flow",
+        name="Pretok Sore",
+        native_unit_of_measurement="m³/s",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:waves-arrow-right",
+        value_fn=lambda data: data.get("river_flow"),
+        attrs_fn=lambda data: {
+            **_river_attrs(data),
+            "description": data.get("river_flow_class"),
+        },
+    ),
+    VremenskaPostajaZiriSensorEntityDescription(
+        key="river_temperature",
+        name="Temperatura Sore",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda data: data.get("river_temperature"),
+        attrs_fn=_river_attrs,
+    ),
+    # Snow (snezna_kamera_ziri.php), measured by hand at 7:00
+    VremenskaPostajaZiriSensorEntityDescription(
+        key="snow_depth",
+        name="Višina snega",
+        native_unit_of_measurement=UnitOfLength.CENTIMETERS,
+        device_class=SensorDeviceClass.DISTANCE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:snowflake",
+        value_fn=_snow_value("snow_depth"),
+        attrs_fn=_snow_attrs,
+    ),
+    VremenskaPostajaZiriSensorEntityDescription(
+        key="snow_new",
+        name="Novozapadli sneg",
+        native_unit_of_measurement=UnitOfLength.CENTIMETERS,
+        device_class=SensorDeviceClass.DISTANCE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:snowflake-alert",
+        value_fn=_snow_value("snow_new"),
+        attrs_fn=_snow_attrs,
+    ),
+    VremenskaPostajaZiriSensorEntityDescription(
+        key="source",
+        name="Vir podatkov",
+        translation_key="source",
+        icon="mdi:database-search",
+        device_class=SensorDeviceClass.ENUM,
+        options=["table", "header"],
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda data: data.get("source"),
     ),
     VremenskaPostajaZiriSensorEntityDescription(
         key="valPM1",
@@ -200,26 +379,10 @@ async def async_setup_entry(
         for description in SENSOR_TYPES
     )
 
-class VremenskaPostajaZiriSensor(CoordinatorEntity[VremenskaPostajaZiriCoordinator], SensorEntity):
+class VremenskaPostajaZiriSensor(VremenskaPostajaZiriEntity, SensorEntity):
     """Representation of a Vremenska postaja Žiri sensor."""
 
     entity_description: VremenskaPostajaZiriSensorEntityDescription
-
-    def __init__(
-        self,
-        coordinator: VremenskaPostajaZiriCoordinator,
-        description: VremenskaPostajaZiriSensorEntityDescription,
-    ) -> None:
-        """Initialize the sensor."""
-        super().__init__(coordinator)
-        self.entity_description = description
-        self._attr_unique_id = f"{DOMAIN}_{description.key}"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, "vremenska_postaja_ziri")},
-            name="Vremenska postaja Žiri",
-            manufacturer="Vreme Žiri",
-            configuration_url="https://www.vreme-ziri.si/tabelaricni_dan.php",
-        )
 
     @property
     def native_value(self) -> str | float | None:
@@ -227,3 +390,10 @@ class VremenskaPostajaZiriSensor(CoordinatorEntity[VremenskaPostajaZiriCoordinat
         if self.coordinator.data is None:
             return None
         return self.entity_description.value_fn(self.coordinator.data)
+
+    @property
+    def extra_state_attributes(self) -> dict | None:
+        """Return extra attributes, e.g. when today's extreme occurred."""
+        if self.entity_description.attrs_fn is None or self.coordinator.data is None:
+            return None
+        return self.entity_description.attrs_fn(self.coordinator.data)

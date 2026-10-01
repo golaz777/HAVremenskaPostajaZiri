@@ -2,6 +2,35 @@
 
 All notable changes to Vremenska postaja Žiri are documented here.
 
+## [1.2.0] - 2026-10-01
+
+### Added
+- **Vir podatkov** diagnostic sensor showing where the weather values come
+  from: `table` (Tabela) or `header` (Glava strani, the fallback). It is an
+  enum sensor, so automations can trigger on it.
+- **River Sora** sensors: water level (cm), flow (m³/s, with the site's
+  description such as *mali pretok*) and water temperature.
+- **Snow** sensors: total depth and fresh snow from the daily 7:00 measurement.
+  Measurements older than 3 days show *unknown* rather than a stale value.
+- **Today's extremes**: max/min temperature, humidity and pressure, strongest
+  gust, max 10-minute wind, heaviest rain rate, most rain in an hour, max UV —
+  each with a `time` attribute — and the current dry and rainy spell in days.
+- **Smer vetra** sensor with the wind direction as a compass point.
+- **Zastareli podatki** problem sensor, on when the newest table row is more
+  than 30 minutes old.
+
+### Changed
+- Every page is now fetched and fails independently. Previously a failure in
+  the weather table also skipped the PM/AQI fetch. Slow-changing pages are
+  fetched less often (today's extremes and river every 15 min, snow hourly).
+- Requests use Home Assistant's shared HTTP session, and HTML parsing runs off
+  the event loop.
+
+### Fixed
+- **Sončno obsevanje** used the unit `W/m2`, which Home Assistant rejects for
+  irradiance; it is now `W/m²`. Home Assistant may ask you to confirm the unit
+  change for long-term statistics under Developer tools → Statistics.
+
 ## [1.1.0] - 2026-10-01
 
 ### Added

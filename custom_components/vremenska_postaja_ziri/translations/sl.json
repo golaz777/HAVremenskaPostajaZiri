@@ -9,5 +9,15 @@
     "abort": {
       "single_instance_allowed": "Vremenska postaja Žiri je že nastavljena."
     }
+  },
+  "entity": {
+    "sensor": {
+      "source": {
+        "state": {
+          "table": "Tabela",
+          "header": "Glava strani"
+        }
+      }
+    }
   }
 }

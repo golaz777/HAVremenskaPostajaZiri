@@ -1,8 +1,7 @@
 [tool.pytest.ini_options]
-# The scraper module is HA-free, so tests import it directly without
-# installing Home Assistant (importing the package would pull in HA).
-pythonpath = ["custom_components/vremenska_postaja_ziri"]
+# "." makes custom_components importable for the Home Assistant tests; the
+# integration directory lets the HA-free scraper tests import `scraper` directly.
+pythonpath = [".", "custom_components/vremenska_postaja_ziri"]
 testpaths = ["tests"]
-# A globally installed pytest_homeassistant_custom_component plugin adds async
-# autouse fixtures that break these plain sync tests.
-addopts = "-p no:homeassistant"
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"

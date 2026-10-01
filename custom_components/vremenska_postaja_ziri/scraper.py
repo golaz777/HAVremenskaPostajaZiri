@@ -4,9 +4,15 @@ Kept free of Home Assistant imports so it can be unit tested on its own.
 """
 from __future__ import annotations
 
+from datetime import date, datetime
+import json
 import re
+from zoneinfo import ZoneInfo
 
 from bs4 import BeautifulSoup
+
+# All times on vreme-ziri.si are local station time.
+LJUBLJANA = ZoneInfo("Europe/Ljubljana")
 
 
 class ParseError(Exception):
@@ -25,6 +31,20 @@ _HEADER_PATTERNS = {
     "rain_total": re.compile(_NUMBER + r"\s*mm\b"),
 }
 _HEADER_MARKER = "Trenutno na"
+
+
+# 16-point compass in Slovenian, as used on the site (S=sever, V=vzhod, J=jug, Z=zahod).
+COMPASS_POINTS = [
+    "S", "SSV", "SV", "VSV", "V", "VJV", "JV", "JJV",
+    "J", "JJZ", "JZ", "ZJZ", "Z", "ZSZ", "SZ", "SSZ",
+]
+
+
+def compass(degrees: float | None) -> str | None:
+    """Convert a wind direction in degrees to a 16-point compass name."""
+    if degrees is None:
+        return None
+    return COMPASS_POINTS[round(degrees / 22.5) % 16]
 
 
 def safe_float(val):
@@ -124,7 +144,7 @@ def _parse_table(soup: BeautifulSoup) -> dict:
     # 13: Prev. smer vetra
     # 14: trajanje sončnega obsevanja (h)
 
-    return {
+    data = {
         "date": cols[0].get_text(strip=True),
         "time": cols[1].get_text(strip=True),
         "temperature": safe_float(cols[2].get_text(strip=True)),
@@ -140,4 +160,194 @@ def _parse_table(soup: BeautifulSoup) -> dict:
         "et_evaporation": safe_float(cols[12].get_text(strip=True)),
         "prevailing_wind_direction": cols[13].get_text(strip=True),
         "sunshine_duration": safe_float(cols[14].get_text(strip=True)),
+    }
+    data["wind_direction"] = compass(data["wind_direction_deg"])
+    data["measured_at"] = _local_datetime(data["date"], data["time"], "%d.%m.%Y %H:%M")
+    return data
+
+
+def _local_datetime(day: str, time: str, fmt: str) -> datetime | None:
+    try:
+        return datetime.strptime(f"{day} {time}", fmt).replace(tzinfo=LJUBLJANA)
+    except ValueError:
+        return None
+
+
+# --- today.php: today's extremes --------------------------------------------
+
+# Row label on today.php -> data key. Rows with a time column also get a
+# "<key>_time" entry ("HH:MM").
+TODAY_FIELDS = {
+    "Najvišja dnevna temperatura": "today_temp_max",
+    "Najnižja dnevna temperatura": "today_temp_min",
+    "Najvišja vlažnost": "today_humidity_max",
+    "Najnižja vlažnost": "today_humidity_min",
+    "Najmočnejši sunek": "today_gust_max",
+    "Najvišja hitrost (povprečje 10 min.)": "today_wind_max",
+    "Največja intenziteta": "today_rain_rate_max",
+    "Največ dežja v eni uri": "today_rain_hour_max",
+    "Najvišji zračni tlak": "today_pressure_max",
+    "Najnižji zračni tlak": "today_pressure_min",
+    "Najvišji UV indeks": "today_uv_max",
+    "Trenutno deževno obdobje": "rain_spell_days",
+    "Trenutno sušno obdobje": "dry_spell_days",
+}
+_FIRST_NUMBER = re.compile(_NUMBER)
+_TIME = re.compile(r"^\d{1,2}:\d{2}$")
+
+
+def parse_today(html: str) -> dict:
+    """Parse today's extremes from today.php."""
+    soup = BeautifulSoup(html, "html.parser")
+    data = {}
+    # Not every row carries class="td_data", so look at all of them.
+    for row in soup.find_all("tr"):
+        cols = row.find_all("td")
+        if len(cols) < 2:
+            continue
+        key = TODAY_FIELDS.get(cols[0].get_text(" ", strip=True))
+        if key is None:
+            continue
+        if match := _FIRST_NUMBER.search(cols[1].get_text(" ", strip=True)):
+            value = safe_float(match.group(1))
+            # Spell lengths are whole days ("5 Dan").
+            data[key] = int(value) if key.endswith("_days") and value is not None else value
+        if len(cols) > 2:
+            time = cols[2].get_text(strip=True)
+            if _TIME.match(time):
+                data[f"{key}_time"] = time
+
+    if not data:
+        raise ParseError("Could not find today's extremes")
+    return data
+
+
+# --- vodostaj.php: river Sora -----------------------------------------------
+
+_WATER_PATTERNS = {
+    "river_flow": re.compile(r"Pretok reke Sore Žiri\s*" + _NUMBER + r"\s*m\s*3\s*/\s*s"),
+    "river_level": re.compile(r"Vodostaj reke Sore Žiri\s*" + _NUMBER + r"\s*cm"),
+    "river_temperature": re.compile(r"Temperatura reke Sore Žiri\s*" + _NUMBER + r"\s*°\s*C"),
+}
+_WATER_FLOW_CLASS = re.compile(r"m\s*3\s*/\s*s\s*-*\s*(.*?)\s*Vodostaj reke Sore Žiri")
+_WATER_UPDATED = re.compile(
+    r"Zadnja posodobitev podatkov:\s*(\d{4}-\d{2}-\d{2})\s*ob\s*(\d{1,2}:\d{2})"
+)
+
+
+def parse_water(html: str) -> dict:
+    """Parse flow, level and temperature of the river Sora from vodostaj.php."""
+    soup = BeautifulSoup(html, "html.parser")
+    for tag in soup(["script", "style"]):
+        tag.decompose()
+    text = soup.get_text(" ", strip=True)
+
+    data = {}
+    for key, pattern in _WATER_PATTERNS.items():
+        if match := pattern.search(text):
+            data[key] = safe_float(match.group(1))
+    if not data:
+        raise ParseError("Could not find river Sora values")
+
+    if "river_flow" in data:
+        match = _WATER_FLOW_CLASS.search(text)
+        data["river_flow_class"] = match.group(1) if match and match.group(1) else None
+    if match := _WATER_UPDATED.search(text):
+        data["river_measured_at"] = _local_datetime(match.group(1), match.group(2), "%Y-%m-%d %H:%M")
+    return data
+
+
+# --- snezna_kamera_ziri.php: snow depth -------------------------------------
+
+_SNOW_SEASON = re.compile(r"Tabela meritev snežne odeje\s*(\d{4})\s*-\s*(\d{4})")
+_SNOW_DAY = re.compile(r"^([A-Za-zČčŠšŽž]+)\s+(\d{1,2})$")
+_MONTHS = {
+    "januar": 1, "februar": 2, "marec": 3, "april": 4, "maj": 5, "junij": 6,
+    "julij": 7, "avgust": 8, "september": 9, "oktober": 10, "november": 11,
+    "december": 12,
+}
+
+
+def parse_snow(html: str) -> dict:
+    """Parse the latest manual snow measurement.
+
+    The table is newest-first. The newest rows are "-" placeholders or live
+    Google chart iframes with no text, so the first row with a number in the
+    total column is the latest usable measurement.
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    title = soup.find(string=_SNOW_SEASON)
+    if title is None:
+        raise ParseError("Could not find snow measurement table")
+    first_year, second_year = (int(y) for y in _SNOW_SEASON.search(title).groups())
+
+    for row in title.find_all_next("tr"):
+        cols = row.find_all("td")
+        if len(cols) < 4:
+            continue
+        day = _SNOW_DAY.match(cols[0].get_text(" ", strip=True))
+        depth = safe_float(cols[3].get_text(strip=True))
+        if day is None or depth is None:
+            continue
+        month = _MONTHS.get(day.group(1).lower())
+        if month is None:
+            continue
+        # A season runs from autumn of the first year into spring of the second.
+        year = first_year if month >= 7 else second_year
+        notes = cols[4].get_text(" ", strip=True) if len(cols) > 4 else ""
+        return {
+            "snow_measured": date(year, month, int(day.group(2))),
+            "snow_new": safe_float(cols[2].get_text(strip=True)),
+            "snow_depth": depth,
+            "snow_notes": notes or None,
+        }
+
+    raise ParseError("No snow measurements found")
+
+
+# --- Google Sheets: PM / AQI ------------------------------------------------
+
+
+def parse_pm(text: str) -> dict:
+    """Parse the latest PM/AQI row from a Google Sheets gviz response.
+
+    Returns an empty dict when the sheet has no rows for today yet.
+    """
+    # The response is wrapped in a JS callback: /*O_o*/\ngoogle.visualization.Query.setResponse({...});
+    if not text.startswith("/*O_o*/"):
+        raise ParseError("Unexpected PM data format")
+    start = text.find("{")
+    end = text.rfind("}")
+    if start == -1 or end == -1:
+        raise ParseError("Unexpected PM data format")
+
+    rows = json.loads(text[start : end + 1]).get("table", {}).get("rows", [])
+    if not rows:
+        return {}
+
+    # Get the latest row
+    cells = rows[-1].get("c", [])
+
+    # Mapping based on JS fetchDay:
+    # cells[0] -> time (B)
+    # cells[2] -> pm1 (E)
+    # cells[3] -> pm25 (F)
+    # cells[5] -> pm10 (H)
+    # cells[7] -> aqi (J)
+    # cells[8] -> aqi1h (K)
+    def get_val(idx):
+        if idx < len(cells) and cells[idx] and "v" in cells[idx]:
+            val = cells[idx]["v"]
+            if isinstance(val, (int, float)):
+                return val
+            if isinstance(val, str):
+                return safe_float(val)
+        return None
+
+    return {
+        "valPM1": get_val(2),
+        "valPM25": get_val(3),
+        "valPM10": get_val(5),
+        "valAQI": get_val(7),
+        "valAQI1h": get_val(8),
     }
