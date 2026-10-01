@@ -9,5 +9,5 @@
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/golaz777/HAVremenskaPostajaZiri/issues",
   "requirements": ["beautifulsoup4>=4.12"],
-  "version": "1.2.1"
+  "version": "1.3.0"
 }

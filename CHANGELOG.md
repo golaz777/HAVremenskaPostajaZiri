@@ -2,7 +2,7 @@
 
 All notable changes to Vremenska postaja Žiri are documented here.
 
-## [Unreleased]
+## [1.3.0] - 2026-10-01
 
 ### Changed
 - On header fallback, **Datum** and **Čas meritve** show when the page was
