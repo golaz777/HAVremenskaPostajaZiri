@@ -2,7 +2,7 @@
 
 All notable changes to Vremenska postaja Žiri are documented here.
 
-## [Unreleased]
+## [1.2.1] - 2026-10-01
 
 ### Added
 - **Integration icon.** Home Assistant shows it on the
