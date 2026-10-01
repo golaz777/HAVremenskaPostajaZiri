@@ -8,19 +8,26 @@ Slovenia ([vreme-ziri.si](https://www.vreme-ziri.si/)).
 
 ## Features
 
-- Polls the station every 5 minutes
+- Polls the station every 5 minutes (configurable, 5–60)
 - Temperature, humidity, wind speed/gust/direction, rain rate and daily total,
   pressure, UV index, solar radiation, evapotranspiration and sunshine duration
 - PM1, PM2.5, PM10 and AQI (current and last hour) from the station's dust sensor
-- **River Sora** water level, flow and temperature — useful for flood alerts
+- **River Sora** water level, flow, temperature and rising/falling trend, plus
+  a **high-water warning** sensor with a level you choose
 - **Snow depth** and fresh snow from the daily 7:00 manual measurement
 - **Today's extremes** — max/min temperature, humidity and pressure, strongest
   gust, heaviest rain, max UV, each with the time it happened, plus the current
   dry and rainy spell in days
+- **Yesterday's** max/min temperature, rain and strongest gust, and **this
+  year's records** (hottest, coldest, wettest day, strongest gust, longest dry
+  and rainy spell, …) with the date they were set
+- **Options** to switch off data you don't need, so fewer pages are fetched
 - Wind direction as a compass point (S, SSV, … in Slovenian notation)
 - **Stale data** problem sensor that turns on when the 5-minute table stops updating
 - Each page is fetched and fails on its own, so e.g. a broken dust-sensor sheet
-  never takes the weather sensors down with it
+  never takes the weather sensors down with it. If a page keeps failing for 3
+  hours, a warning appears under **Settings → Repairs**
+- **Diagnostics download** showing what was last read from every page
 - **Header fallback.** When the 5-minute data table is empty or can't be read
   (this happens around the start of each month), temperature, humidity, wind
   speed and rainfall are taken from the "Trenutno na meteorološki postaji ŽIRI"
@@ -58,6 +65,16 @@ under **Settings → Updates** (and in HACS). Click **Update**, then restart Hom
 Assistant.
 
 To check right away: **HACS → ⋮ on the integration → Update information**.
+
+## Options
+
+**Settings → Devices & services → Vremenska postaja Žiri → Configure**
+
+| Option | Default | Description |
+|---|---|---|
+| Data groups | all | Today's extremes, Yesterday, This year's records, River Sora, Snow, Air quality. The 5-minute weather table is always read. Sensors of groups you switch off are removed, and come back when you switch the group on again |
+| Weather update interval | 5 min | How often the weather table and air-quality sheet are read (5–60). The other pages have their own, slower schedule |
+| River Sora warning level | 200 cm | **Visok vodostaj Sore** turns on at or above this level. The site's river chart draws warning lines at 200, 240 and 280 cm |
 
 ## Sensors
 
@@ -98,13 +115,37 @@ Each has a `time` attribute with when it happened (HH:MM).
 | Najvišji UV indeks danes | |
 | Trenutno sušno / deževno obdobje | days |
 
-### River Sora (`vodostaj.php`, every 15 min)
+### Yesterday (`yesterday.php`, hourly)
+
+Each has a `time` attribute (HH:MM), except the rain total.
+
+| Sensor | Unit |
+|---|---|
+| Najvišja / Najnižja temperatura včeraj | °C |
+| Padavine včeraj | mm |
+| Najmočnejši sunek včeraj | km/h |
+
+### This year's records (`thisyear.php`, hourly)
+
+Each has a `date` attribute (and `time`, where the site gives one).
+
+| Sensor | Unit |
+|---|---|
+| Najvišja / Najnižja temperatura letos | °C |
+| Padavine letos | mm |
+| Največ padavin v enem dnevu letos, Največ padavin v eni uri letos | mm |
+| Najmočnejši sunek letos | km/h |
+| Najdaljše sušno / deževno obdobje letos | days |
+
+### River Sora (`vodostaj.php` and its data sheet, every 15 min)
 
 | Sensor | Unit | Attributes |
 |---|---|---|
 | Vodostaj Sore | cm | `measured_at` |
 | Pretok Sore | m³/s | `measured_at`, `description` (e.g. *mali pretok*) |
 | Temperatura Sore | °C | `measured_at` |
+| Trend vodostaja Sore, Trend pretoka Sore | Narašča / Pada / Ustaljen | |
+| Visok vodostaj Sore (binary, safety) | on = unsafe | `level`, `threshold`, `trend`, `site_warning_levels`, `measured_at` |
 
 The site publishes river data roughly hourly, so `measured_at` can trail the
 current time by an hour or more.
@@ -122,20 +163,33 @@ season's value; the `measured` attribute still shows when it was taken.
 
 ### Example: flood alert
 
+Set the warning level under **Options**, then:
+
 ```yaml
 automation:
   - alias: Sora flood warning
     triggers:
-      - trigger: numeric_state
-        entity_id: sensor.vremenska_postaja_ziri_vodostaj_sore
-        above: 200
+      - trigger: state
+        entity_id: binary_sensor.vremenska_postaja_ziri_visok_vodostaj_sore
+        to: "on"
     actions:
       - action: notify.notify
         data:
-          message: "Sora is at {{ states('sensor.vremenska_postaja_ziri_vodostaj_sore') }} cm"
+          message: >
+            Sora is at {{ state_attr('binary_sensor.vremenska_postaja_ziri_visok_vodostaj_sore', 'level') }} cm
+            and {{ states('sensor.vremenska_postaja_ziri_trend_vodostaja_sore') }}
 ```
 
 Entity IDs depend on your setup; check yours under **Settings → Entities**.
+
+## Troubleshooting
+
+- **A warning under Settings → Repairs** means one page of vreme-ziri.si has
+  not been readable for 3 hours. It clears itself when the page works again.
+  If you don't need that data, switch its group off in **Options**.
+- **Download diagnostics** (integration page → ⋮ → *Download diagnostics*)
+  shows, for every page, when it was last read, the current error if any, and
+  all values the integration currently has. Attach it to bug reports.
 
 ## Development
 

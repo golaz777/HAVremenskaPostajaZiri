@@ -28,7 +28,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN, SNOW_MAX_AGE
-from .entity import VremenskaPostajaZiriEntity
+from .entity import VremenskaPostajaZiriEntity, enabled_descriptions
 from .scraper import COMPASS_POINTS
 
 @dataclass(frozen=True, kw_only=True)
@@ -41,13 +41,31 @@ class VremenskaPostajaZiriSensorEntityDescription(SensorEntityDescription):
 def _today_extreme(
     key: str, name: str, **kwargs
 ) -> VremenskaPostajaZiriSensorEntityDescription:
-    """Today's extreme from today.php, with the time it occurred as an attribute."""
+    """An extreme with the time it occurred as an attribute (today, yesterday)."""
+    kwargs.setdefault("state_class", SensorStateClass.MEASUREMENT)
     return VremenskaPostajaZiriSensorEntityDescription(
         key=key,
         name=name,
-        state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda data: data.get(key),
         attrs_fn=lambda data: {"time": data.get(f"{key}_time")},
+        **kwargs,
+    )
+
+
+def _year_record(
+    key: str, name: str, **kwargs
+) -> VremenskaPostajaZiriSensorEntityDescription:
+    """This year's record, with the date (and time, if known) it was set."""
+    kwargs.setdefault("state_class", SensorStateClass.MEASUREMENT)
+    return VremenskaPostajaZiriSensorEntityDescription(
+        key=key,
+        name=name,
+        value_fn=lambda data: data.get(key),
+        attrs_fn=lambda data: {
+            "date": data.get(f"{key}_date"),
+            "time": data.get(f"{key}_time"),
+            "year": data.get("year"),
+        },
         **kwargs,
     )
 
@@ -264,6 +282,92 @@ SENSOR_TYPES: list[VremenskaPostajaZiriSensorEntityDescription] = [
         icon="mdi:weather-rainy",
         value_fn=lambda data: data.get("rain_spell_days"),
     ),
+    # Yesterday (yesterday.php)
+    _today_extreme(
+        "yesterday_temp_max", "Najvišja temperatura včeraj",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+    ),
+    _today_extreme(
+        "yesterday_temp_min", "Najnižja temperatura včeraj",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+    ),
+    _today_extreme(
+        "yesterday_rain", "Padavine včeraj",
+        native_unit_of_measurement=UnitOfLength.MILLIMETERS,
+        device_class=SensorDeviceClass.PRECIPITATION,
+    ),
+    _today_extreme(
+        "yesterday_gust_max", "Najmočnejši sunek včeraj",
+        native_unit_of_measurement=UnitOfSpeed.KILOMETERS_PER_HOUR,
+        device_class=SensorDeviceClass.WIND_SPEED,
+    ),
+    # This year's records (thisyear.php)
+    _year_record(
+        "year_temp_max", "Najvišja temperatura letos",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+    ),
+    _year_record(
+        "year_temp_min", "Najnižja temperatura letos",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+    ),
+    _year_record(
+        "year_rain", "Padavine letos",
+        native_unit_of_measurement=UnitOfLength.MILLIMETERS,
+        device_class=SensorDeviceClass.PRECIPITATION,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+    ),
+    _year_record(
+        "year_rain_day_max", "Največ padavin v enem dnevu letos",
+        native_unit_of_measurement=UnitOfLength.MILLIMETERS,
+        device_class=SensorDeviceClass.PRECIPITATION,
+    ),
+    _year_record(
+        "year_rain_hour_max", "Največ padavin v eni uri letos",
+        native_unit_of_measurement=UnitOfLength.MILLIMETERS,
+        device_class=SensorDeviceClass.PRECIPITATION,
+    ),
+    _year_record(
+        "year_gust_max", "Najmočnejši sunek letos",
+        native_unit_of_measurement=UnitOfSpeed.KILOMETERS_PER_HOUR,
+        device_class=SensorDeviceClass.WIND_SPEED,
+    ),
+    _year_record(
+        "year_dry_spell_max", "Najdaljše sušno obdobje letos",
+        native_unit_of_measurement=UnitOfTime.DAYS,
+        device_class=SensorDeviceClass.DURATION,
+        icon="mdi:weather-sunny",
+        state_class=None,
+    ),
+    _year_record(
+        "year_rain_spell_max", "Najdaljše deževno obdobje letos",
+        native_unit_of_measurement=UnitOfTime.DAYS,
+        device_class=SensorDeviceClass.DURATION,
+        icon="mdi:weather-rainy",
+        state_class=None,
+    ),
+    # River Sora (vodostaj.php)
+    VremenskaPostajaZiriSensorEntityDescription(
+        key="river_level_trend",
+        name="Trend vodostaja Sore",
+        translation_key="river_trend",
+        icon="mdi:trending-up",
+        device_class=SensorDeviceClass.ENUM,
+        options=["rising", "falling", "steady"],
+        value_fn=lambda data: data.get("river_level_trend"),
+    ),
+    VremenskaPostajaZiriSensorEntityDescription(
+        key="river_flow_trend",
+        name="Trend pretoka Sore",
+        translation_key="river_trend",
+        icon="mdi:trending-up",
+        device_class=SensorDeviceClass.ENUM,
+        options=["rising", "falling", "steady"],
+        value_fn=lambda data: data.get("river_flow_trend"),
+    ),
     # River Sora (vodostaj.php)
     VremenskaPostajaZiriSensorEntityDescription(
         key="river_level",
@@ -376,7 +480,7 @@ async def async_setup_entry(
     coordinator = hass.data[DOMAIN][entry.entry_id]
     async_add_entities(
         VremenskaPostajaZiriSensor(coordinator, description)
-        for description in SENSOR_TYPES
+        for description in enabled_descriptions(hass, entry, "sensor", SENSOR_TYPES)
     )
 
 class VremenskaPostajaZiriSensor(VremenskaPostajaZiriEntity, SensorEntity):

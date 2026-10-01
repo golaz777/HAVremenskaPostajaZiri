@@ -17,7 +17,50 @@
           "table": "Table",
           "header": "Page header"
         }
+      },
+      "river_trend": {
+        "state": {
+          "rising": "Rising",
+          "falling": "Falling",
+          "steady": "Steady"
+        }
       }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Vremenska postaja Žiri options",
+        "description": "The 5-minute weather table is always read. Turn off the groups you don't need to fetch fewer pages from the site.",
+        "data": {
+          "groups": "Data groups",
+          "scan_interval": "Weather update interval",
+          "river_warning_level": "River Sora warning level"
+        },
+        "data_description": {
+          "groups": "Sensors of groups you turn off are removed; turning a group back on creates them again.",
+          "scan_interval": "How often the weather table and PM sheet are read (5–60 minutes). Other pages have their own, slower schedule.",
+          "river_warning_level": "\"Visok vodostaj Sore\" turns on at or above this level. The site's chart draws warning lines at 200, 240 and 280 cm."
+        }
+      }
+    }
+  },
+  "selector": {
+    "groups": {
+      "options": {
+        "today": "Today's extremes",
+        "yesterday": "Yesterday",
+        "year": "This year's records",
+        "water": "River Sora (level, flow, trend, warning)",
+        "snow": "Snow",
+        "pm": "Air quality (PM, AQI)"
+      }
+    }
+  },
+  "issues": {
+    "source_failing": {
+      "title": "Vremenska postaja Žiri: {source} data unavailable",
+      "description": "Reading the **{source}** data from vreme-ziri.si has failed since {since}.\n\nLast error: `{error}`\n\nThe site may be down or its page layout may have changed. The issue disappears by itself once the data can be read again. Download the integration's diagnostics for details, or turn this data group off in the integration's options."
     }
   }
 }

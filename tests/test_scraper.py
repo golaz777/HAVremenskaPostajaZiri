@@ -10,10 +10,13 @@ from scraper import (
     compass,
     parse_header,
     parse_pm,
+    parse_river_trend,
     parse_snow,
     parse_today,
     parse_water,
     parse_weather_html,
+    parse_year,
+    parse_yesterday,
 )
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -279,3 +282,89 @@ def test_pm_no_rows_yet_is_empty_not_error():
 def test_pm_bad_format_raises():
     with pytest.raises(ParseError):
         parse_pm("<html>error</html>")
+
+
+# --- Yesterday --------------------------------------------------------------
+
+
+def test_yesterday():
+    data = parse_yesterday(_load("yesterday.html"))
+
+    assert data["yesterday_temp_max"] == 19.3
+    assert data["yesterday_temp_max_time"] == "14:52"
+    assert data["yesterday_temp_min"] == 7.2
+    assert data["yesterday_temp_min_time"] == "06:28"
+    assert data["yesterday_rain"] == 0.0
+    assert data["yesterday_gust_max"] == 8.0
+    assert data["yesterday_gust_max_time"] == "15:05"
+
+
+def test_yesterday_without_table_raises():
+    with pytest.raises(ParseError):
+        parse_yesterday("<html><body>nothing</body></html>")
+
+
+# --- This year's records ----------------------------------------------------
+
+
+def test_year_records():
+    data = parse_year(_load("thisyear.html"))
+
+    assert data["year"] == 2026
+    assert data["year_temp_max"] == 37.4
+    assert data["year_temp_max_date"] == date(2026, 7, 31)
+    assert data["year_temp_max_time"] == "17:02"
+    assert data["year_temp_min"] == -15.2
+    assert data["year_temp_min_date"] == date(2026, 1, 8)
+    assert data["year_rain"] == 1241.2
+    assert "year_rain_date" not in data
+    assert data["year_rain_day_max"] == 121.2
+    assert data["year_rain_day_max_date"] == date(2026, 9, 10)
+    assert "year_rain_day_max_time" not in data
+    assert data["year_rain_hour_max"] == 66.8
+    assert data["year_gust_max"] == 51.5
+    assert data["year_gust_max_date"] == date(2026, 3, 27)
+    assert data["year_dry_spell_max"] == 18
+    assert isinstance(data["year_dry_spell_max"], int)
+    assert data["year_rain_spell_max"] == 11
+
+
+def test_year_without_heading_raises():
+    with pytest.raises(ParseError):
+        parse_year("<table><tr><td>Najvišja temperatura</td><td>1 °C</td><td>31 julij</td></tr></table>")
+
+
+# --- River trend (Google Sheet) ---------------------------------------------
+
+
+def test_river_trend():
+    data = parse_river_trend(_load("river_sheet.txt"))
+
+    assert data == {
+        "river_level_trend": "steady",
+        "river_flow_trend": "steady",
+        "river_level_warning_levels": [200.0, 240.0, 280.0],
+    }
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [("[Narašča]", "rising"), ("[Pada]", "falling"), ("[Ustaljen]", "steady"), ("", None), ("?", None)],
+)
+def test_river_trend_values(raw, expected):
+    text = (
+        '/*O_o*/\ngoogle.visualization.Query.setResponse({"status":"ok","table":{"rows":['
+        '{"c":[null,null,null,null,{"v":200.0},{"v":240.0},{"v":280.0},null,null,null,null,null]},'
+        '{"c":[null,null,null,null,null,null,null,null,null,null,{"v":"%s"},{"v":"[Pada]"}]}'
+        "]}});" % raw
+    )
+
+    data = parse_river_trend(text)
+
+    assert data["river_level_trend"] == expected
+    assert data["river_flow_trend"] == "falling"
+
+
+def test_river_trend_bad_format_raises():
+    with pytest.raises(ParseError):
+        parse_river_trend("<html>error</html>")

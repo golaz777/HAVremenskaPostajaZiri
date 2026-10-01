@@ -201,11 +201,17 @@ TODAY_FIELDS = {
     "Trenutno sušno obdobje": "dry_spell_days",
 }
 _FIRST_NUMBER = re.compile(_NUMBER)
-_TIME = re.compile(r"^\d{1,2}:\d{2}$")
+_TIME = re.compile(r"\b(\d{1,2}:\d{2})\b")
+_DAY_MONTH = re.compile(r"\b(\d{1,2})\s+([A-Za-zČčŠšŽž]+)\b")
 
 
-def parse_today(html: str) -> dict:
-    """Parse today's extremes from today.php."""
+def _parse_extremes(html: str, fields: dict[str, str], what: str, year: int | None = None) -> dict:
+    """Parse a label / value / when table (today.php, yesterday.php, thisyear.php).
+
+    Rows matched by label in ``fields`` give ``<key>`` and, when the third
+    column has them, ``<key>_time`` ("HH:MM") and, if ``year`` is given,
+    ``<key>_date`` (from e.g. "31 julij").
+    """
     soup = BeautifulSoup(html, "html.parser")
     data = {}
     # Not every row carries class="td_data", so look at all of them.
@@ -213,20 +219,74 @@ def parse_today(html: str) -> dict:
         cols = row.find_all("td")
         if len(cols) < 2:
             continue
-        key = TODAY_FIELDS.get(cols[0].get_text(" ", strip=True))
+        key = fields.get(cols[0].get_text(" ", strip=True))
         if key is None:
             continue
         if match := _FIRST_NUMBER.search(cols[1].get_text(" ", strip=True)):
             value = safe_float(match.group(1))
             # Spell lengths are whole days ("5 Dan").
-            data[key] = int(value) if key.endswith("_days") and value is not None else value
+            data[key] = int(value) if "spell" in key and value is not None else value
         if len(cols) > 2:
-            time = cols[2].get_text(strip=True)
-            if _TIME.match(time):
-                data[f"{key}_time"] = time
+            when = cols[2].get_text(" ", strip=True)
+            if match := _TIME.search(when):
+                data[f"{key}_time"] = match.group(1)
+            if year is not None and (match := _DAY_MONTH.search(when)):
+                month = _MONTHS.get(match.group(2).lower())
+                if month is not None:
+                    data[f"{key}_date"] = date(year, month, int(match.group(1)))
 
     if not data:
-        raise ParseError("Could not find today's extremes")
+        raise ParseError(f"Could not find {what}")
+    return data
+
+
+def parse_today(html: str) -> dict:
+    """Parse today's extremes from today.php."""
+    return _parse_extremes(html, TODAY_FIELDS, "today's extremes")
+
+
+# --- yesterday.php ----------------------------------------------------------
+
+YESTERDAY_FIELDS = {
+    "Najvišja temperatura": "yesterday_temp_max",
+    "Najnižja temperatura": "yesterday_temp_min",
+    "Dež včeraj": "yesterday_rain",
+    "Najmočnejši sunek": "yesterday_gust_max",
+}
+
+
+def parse_yesterday(html: str) -> dict:
+    """Parse yesterday's summary from yesterday.php."""
+    return _parse_extremes(html, YESTERDAY_FIELDS, "yesterday's data")
+
+
+# --- thisyear.php -----------------------------------------------------------
+
+YEAR_FIELDS = {
+    "Najvišja temperatura": "year_temp_max",
+    "Najnižja temperatura": "year_temp_min",
+    "Dež letos": "year_rain",
+    "Največ dežja v enem dnevu": "year_rain_day_max",
+    "Največ dežja v eni uri": "year_rain_hour_max",
+    "Največji sunek": "year_gust_max",
+    "Najdaljše sušno obdobje": "year_dry_spell_max",
+    "Najdaljše deževno obdobje": "year_rain_spell_max",
+}
+_YEAR_HEADING = re.compile(r"vrednosti v letu\s+(\d{4})")
+
+
+def parse_year(html: str) -> dict:
+    """Parse this year's records from thisyear.php.
+
+    Dates on the page have no year ("31 julij"); it comes from the heading
+    "Maksimalne in minimalne vrednosti v letu 2026".
+    """
+    match = _YEAR_HEADING.search(BeautifulSoup(html, "html.parser").get_text(" ", strip=True))
+    if match is None:
+        raise ParseError("Could not find the year of this year's records")
+    year = int(match.group(1))
+    data = _parse_extremes(html, YEAR_FIELDS, "this year's records", year=year)
+    data["year"] = year
     return data
 
 
@@ -313,6 +373,72 @@ def parse_snow(html: str) -> dict:
     raise ParseError("No snow measurements found")
 
 
+# --- Google Sheets -----------------------------------------------------------
+
+
+def _gviz_rows(text: str, what: str) -> list[dict]:
+    """Rows of a Google Sheets gviz response."""
+    # The response is wrapped in a JS callback: /*O_o*/\ngoogle.visualization.Query.setResponse({...});
+    if not text.startswith("/*O_o*/"):
+        raise ParseError(f"Unexpected {what} format")
+    start = text.find("{")
+    end = text.rfind("}")
+    if start == -1 or end == -1:
+        raise ParseError(f"Unexpected {what} format")
+    try:
+        payload = json.loads(text[start : end + 1])
+    except ValueError as err:
+        raise ParseError(f"Unexpected {what} format: {err}") from err
+    return payload.get("table", {}).get("rows", [])
+
+
+def _gviz_value(cells: list, idx: int):
+    if idx < len(cells) and cells[idx]:
+        return cells[idx].get("v")
+    return None
+
+
+# River Sora sheet (also used by vodostaj.php for its trend arrows):
+# K = level trend, L = flow trend, E-G = level warning lines (cm).
+RIVER_SHEET_URL = (
+    "https://docs.google.com/spreadsheets/d/1CSk66tQChluB8mDq-VCw8XkidqZ1lTsZZ0eJcM3tJzM"
+    "/gviz/tq?sheet=2_vodostaj-pretok"
+)
+_TRENDS = {"narašča": "rising", "pada": "falling", "ustaljen": "steady"}
+
+
+def _trend(raw) -> str | None:
+    if not isinstance(raw, str):
+        return None
+    raw = raw.strip(" []").lower()
+    return next((trend for word, trend in _TRENDS.items() if word in raw), None)
+
+
+def parse_river_trend(text: str) -> dict:
+    """Parse the river Sora level/flow trend and warning levels."""
+    rows = _gviz_rows(text, "river data")
+
+    level_trend = flow_trend = None
+    warning_levels = None
+    for row in rows:
+        cells = row.get("c") or []
+        # The newest trend is in the last row that has one.
+        if _gviz_value(cells, 10) or _gviz_value(cells, 11):
+            level_trend = _trend(_gviz_value(cells, 10))
+            flow_trend = _trend(_gviz_value(cells, 11))
+        levels = [_gviz_value(cells, i) for i in (4, 5, 6)]
+        if warning_levels is None and all(isinstance(v, (int, float)) for v in levels):
+            warning_levels = [float(v) for v in levels]
+
+    if level_trend is None and flow_trend is None:
+        raise ParseError("Could not find river trend")
+    return {
+        "river_level_trend": level_trend,
+        "river_flow_trend": flow_trend,
+        "river_level_warning_levels": warning_levels,
+    }
+
+
 # --- Google Sheets: PM / AQI ------------------------------------------------
 
 
@@ -321,15 +447,7 @@ def parse_pm(text: str) -> dict:
 
     Returns an empty dict when the sheet has no rows for today yet.
     """
-    # The response is wrapped in a JS callback: /*O_o*/\ngoogle.visualization.Query.setResponse({...});
-    if not text.startswith("/*O_o*/"):
-        raise ParseError("Unexpected PM data format")
-    start = text.find("{")
-    end = text.rfind("}")
-    if start == -1 or end == -1:
-        raise ParseError("Unexpected PM data format")
-
-    rows = json.loads(text[start : end + 1]).get("table", {}).get("rows", [])
+    rows = _gviz_rows(text, "PM data")
     if not rows:
         return {}
 

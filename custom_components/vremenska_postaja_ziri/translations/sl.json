@@ -17,7 +17,50 @@
           "table": "Tabela",
           "header": "Glava strani"
         }
+      },
+      "river_trend": {
+        "state": {
+          "rising": "Narašča",
+          "falling": "Pada",
+          "steady": "Ustaljen"
+        }
       }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Nastavitve Vremenske postaje Žiri",
+        "description": "5-minutna tabela vremenskih podatkov se bere vedno. Izklopite skupine, ki jih ne potrebujete, da se s strani prenese manj strani.",
+        "data": {
+          "groups": "Skupine podatkov",
+          "scan_interval": "Interval osveževanja vremena",
+          "river_warning_level": "Opozorilni vodostaj Sore"
+        },
+        "data_description": {
+          "groups": "Senzorji izklopljenih skupin se odstranijo; ob ponovnem vklopu se znova ustvarijo.",
+          "scan_interval": "Kako pogosto se bereta vremenska tabela in tabela prašnih delcev (5–60 minut). Ostale strani imajo svoj, redkejši urnik.",
+          "river_warning_level": "\"Visok vodostaj Sore\" se vklopi pri tem ali višjem vodostaju. Graf na strani ima opozorilne črte pri 200, 240 in 280 cm."
+        }
+      }
+    }
+  },
+  "selector": {
+    "groups": {
+      "options": {
+        "today": "Današnji ekstremi",
+        "yesterday": "Včeraj",
+        "year": "Letošnji rekordi",
+        "water": "Reka Sora (vodostaj, pretok, trend, opozorilo)",
+        "snow": "Sneg",
+        "pm": "Kakovost zraka (PM, AQI)"
+      }
+    }
+  },
+  "issues": {
+    "source_failing": {
+      "title": "Vremenska postaja Žiri: podatki {source} niso na voljo",
+      "description": "Branje podatkov **{source}** s strani vreme-ziri.si ne uspeva od {since}.\n\nZadnja napaka: `{error}`\n\nStran morda ne deluje ali pa se je spremenila njena zgradba. Opozorilo izgine samo, ko se podatki spet berejo. Za podrobnosti prenesite diagnostiko integracije ali pa to skupino podatkov izklopite v nastavitvah integracije."
     }
   }
 }

@@ -2,6 +2,34 @@
 
 All notable changes to Vremenska postaja Žiri are documented here.
 
+## [Unreleased]
+
+### Added
+- **Options** (Settings → Devices & services → Vremenska postaja Žiri →
+  Configure): switch data groups on or off (today's extremes, yesterday, this
+  year's records, river Sora, snow, air quality), set the weather update
+  interval (5–60 min) and the river warning level. Switched-off groups are not
+  fetched and their sensors are removed; switching them back on recreates them.
+- **River Sora trend** sensors (*Trend vodostaja Sore*, *Trend pretoka Sore*:
+  rising / falling / steady), read from the data sheet behind the site's
+  river page.
+- **Visok vodostaj Sore** safety binary sensor: on when the river is at or
+  above your warning level (default 200 cm, the lowest warning line on the
+  site's chart). Attributes include the level, trend and the site's warning
+  lines.
+- **Yesterday** sensors: max/min temperature, rain and strongest gust.
+- **This year's records**: max/min temperature, total rain, wettest day and
+  hour, strongest gust, longest dry and rainy spell — each with the date set.
+- **Repairs**: a page that has failed for 3 hours raises a warning under
+  Settings → Repairs; it clears itself when the page works again or when its
+  group is switched off.
+- **Diagnostics download** with every source's last success, current error and
+  the latest data.
+
+### Changed
+- Minimum Home Assistant version for HACS is now 2024.12 (needed by the
+  options dialog).
+
 ## [1.3.0] - 2026-10-01
 
 ### Changed
