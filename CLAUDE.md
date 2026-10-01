@@ -26,6 +26,12 @@ HACS requires this layout.
 - `entity.py` — shared base: device info and `unique_id = f"{DOMAIN}_{key}"`.
   Never change a key; it would orphan the user's entity and history.
 - `sensor.py` — entity descriptions with `value_fn` and optional `attrs_fn`.
+- `brand/` — `icon.png` (256×256) and `icon@2x.png` (512×512), transparent
+  corners. Home Assistant serves custom-integration brand images from this
+  folder (`homeassistant/components/brands`); missing variants fall back to
+  `icon.png`. Rendered from `assets/icon.svg` with
+  `magick -background none -density 192 assets/icon.svg -resize 512x512 …`,
+  then `-resize 256x256` for `icon.png`; save both with `-depth 8 -strip`.
 - `binary_sensor.py` — "Zastareli podatki" (table older than `STALE_AFTER`).
 
 ## Table vs. header

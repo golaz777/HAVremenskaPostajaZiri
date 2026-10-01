@@ -1,3 +1,5 @@
+<img src="custom_components/vremenska_postaja_ziri/brand/icon.png" alt="" width="96" align="right">
+
 # Vremenska postaja Žiri
 
 A [Home Assistant](https://www.home-assistant.io) custom integration that reads

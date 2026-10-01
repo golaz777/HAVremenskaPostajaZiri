@@ -2,6 +2,15 @@
 
 All notable changes to Vremenska postaja Žiri are documented here.
 
+## [Unreleased]
+
+### Added
+- **Integration icon.** Home Assistant shows it on the
+  integration card, in Devices & services and in the add-integration dialog,
+  instead of the generic placeholder. Needs a Home Assistant version that
+  loads brand images from custom integrations (confirmed on 2026.7); older
+  versions keep the placeholder.
+
 ## [1.2.0] - 2026-10-01
 
 ### Added

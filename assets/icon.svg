@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4FC3F7"/>
+      <stop offset="1" stop-color="#0277BD"/>
+    </linearGradient>
+    <linearGradient id="cloud" gradientUnits="userSpaceOnUse" x1="0" y1="140" x2="0" y2="356">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#E3F2FD"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="512" height="512" rx="112" fill="url(#sky)"/>
+  <!-- Sun -->
+  <g stroke="#FFCA28" stroke-width="22" stroke-linecap="round">
+    <line x1="330" y1="66" x2="330" y2="96"/>
+    <line x1="428" y1="164" x2="398" y2="164"/>
+    <line x1="399" y1="95" x2="378" y2="116"/>
+    <line x1="261" y1="95" x2="282" y2="116"/>
+    <line x1="399" y1="233" x2="378" y2="212"/>
+  </g>
+  <circle cx="330" cy="164" r="66" fill="#FFCA28"/>
+  <!-- Cloud -->
+  <g fill="url(#cloud)">
+    <circle cx="190" cy="250" r="78"/>
+    <circle cx="290" cy="232" r="92"/>
+    <circle cx="120" cy="300" r="56"/>
+    <circle cx="366" cy="298" r="58"/>
+    <rect x="120" y="270" width="246" height="86"/>
+  </g>
+  <!-- Rain -->
+  <g fill="#E1F5FE">
+    <path d="M165 382 Q141 418 141 432 A24 24 0 0 0 189 432 Q189 418 165 382Z"/>
+    <path d="M247 382 Q223 418 223 432 A24 24 0 0 0 271 432 Q271 418 247 382Z"/>
+    <path d="M329 382 Q305 418 305 432 A24 24 0 0 0 353 432 Q353 418 329 382Z"/>
+  </g>
+</svg>
