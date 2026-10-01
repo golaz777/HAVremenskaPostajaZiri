@@ -2,7 +2,7 @@
 
 All notable changes to Vremenska postaja Žiri are documented here.
 
-## [Unreleased]
+## [1.4.0] - 2026-10-01
 
 ### Added
 - **Options** (Settings → Devices & services → Vremenska postaja Žiri →
